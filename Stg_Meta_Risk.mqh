@@ -12,10 +12,9 @@ INPUT2_GROUP("Meta Risk strategy: main params");
 INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_Low = STRAT_BANDS;    // Strategy for low risk
 INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_Medium = STRAT_NONE;  // Strategy for medium risk
 INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_High = STRAT_NONE;    // Strategy for high risk
-INPUT2 int Meta_Risk_Strategy_Risk_Method = 0;                     // Method for risk calculation
 INPUT2_GROUP("Meta Risk strategy: common params");
 INPUT2 float Meta_Risk_LotSize = 0;                // Lot size
-INPUT2 int Meta_Risk_SignalOpenMethod = 0;         // Signal open method
+INPUT2 int Meta_Risk_SignalOpenMethod = 255;       // Signal open method
 INPUT2 float Meta_Risk_SignalOpenLevel = 0;        // Signal open level
 INPUT2 int Meta_Risk_SignalOpenFilterMethod = 32;  // Signal open filter method
 INPUT2 int Meta_Risk_SignalOpenFilterTime = 3;     // Signal open filter time (0-31)
@@ -288,16 +287,14 @@ class Stg_Meta_Risk : public Strategy {
   /**
    * Gets strategy risk.
    */
-  Ref<Strategy> GetRiskStrategy(uint _method = 0) {
-    float _risk = GetRiskValue(::Meta_Risk_Strategy_Risk_Method);
-    Ref<Strategy> _strat_ref;
-    if (_risk >= 0.6f && _risk <= 1.0f) {
+  Ref<Strategy> GetRiskStrategy(ENUM_ORDER_TYPE _cmd, uint _method = 0) {
+    float _risk = GetRiskValue(_cmd, _method);
+    Ref<Strategy> _strat_ref = strats.GetByKey(1);
+    Chart *_chart = trade.GetChart();
+    if (_risk > 0.6f) {
       // Risk value is high.
       _strat_ref = strats.GetByKey(2);
-    } else if (_risk >= 0.4f && _risk >= 0.6f) {
-      // Risk value is medium.
-      _strat_ref = strats.GetByKey(1);
-    } else if (_risk >= 0.0f && _risk <= 0.4f) {
+    } else if (_risk < 0.4f) {
       // Risk value is low.
       _strat_ref = strats.GetByKey(0);
     }
@@ -307,10 +304,68 @@ class Stg_Meta_Risk : public Strategy {
   /**
    * Gets the risk value.
    */
-  float GetRiskValue(uint _method = 0) {
+  float GetRiskValue(ENUM_ORDER_TYPE _cmd, uint _method = 0, int _shift = 0) {
     float _risk = 0.5f;
+    Chart *_c = trade.GetChart();
+    if (METHOD(_method, 0)) _risk += trade.IsPeak(_cmd, _shift) ? 0.1f : -0.1f;
+    if (METHOD(_method, 1)) _risk += !trade.IsPivot(_cmd, _shift) ? 0.1f : -0.1f;
+    if (METHOD(_method, 2)) _risk += !IsTrend(_cmd) ? 0.1f : -0.1f;
+    if (METHOD(_method, 3))
+      _risk += _c.GetVolume(PERIOD_D1, _shift) > _c.GetVolume(PERIOD_D1, _shift + 1) ? 0.1f : -0.1f;
+    if (METHOD(_method, 4))
+      _risk += _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_R1) || _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_S1)
+                   ? 0.1f
+                   : -0.0f;
+    if (METHOD(_method, 5))
+      _risk += _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_R2) || _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_S2)
+                   ? 0.1f
+                   : -0.0f;
+    if (METHOD(_method, 6))
+      _risk += _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_R3) || _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_S3)
+                   ? 0.1f
+                   : -0.0f;
+    if (METHOD(_method, 7))
+      _risk += _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_R4) || _c.CheckCondition(CHART_COND_BAR_CLOSE_GT_PP_S4)
+                   ? 0.1f
+                   : -0.0f;
     return _risk;
   }
+
+  /**
+   * Checks if the current price is in trend given the order type.
+   */
+  bool IsTrend(ENUM_ORDER_TYPE _cmd) {
+    bool _result = false;
+    double _tvalue = GetTrendStrength();
+    switch (_cmd) {
+      case ORDER_TYPE_BUY:
+        _result = _tvalue > sparams.trend_threshold;
+        break;
+      case ORDER_TYPE_SELL:
+        _result = _tvalue < -sparams.trend_threshold;
+        break;
+    }
+    return _result;
+  }
+
+  /**
+   * Gets trend strength value.
+   */
+  float GetTrendStrength(ENUM_TIMEFRAMES _tf = PERIOD_D1, int _shift = 1) {
+    float _result = 0;
+    Chart *_c = trade.GetChart();
+    if (_c.IsValidShift(_shift)) {
+      ChartEntry _bar1 = _c.GetEntry(_tf, _shift);
+      float _range = _bar1.bar.ohlc.GetRange();
+      if (_range > 0) {
+        float _open = (float)_c.GetOpen(_tf);
+        float _pp = _bar1.bar.ohlc.GetPivot();
+        _result = 1 / _range * (_open - _pp);
+        _result = fmin(1, fmax(-1, _result));
+      }
+    }
+    return _result;
+  };
 
   /**
    * Gets price stop value.
@@ -322,7 +377,7 @@ class Stg_Meta_Risk : public Strategy {
       // Ignores calculation when method is 0.
       return (float)_result;
     }
-    Ref<Strategy> _strat_ref = GetRiskStrategy();
+    Ref<Strategy> _strat_ref = GetRiskStrategy(_cmd, _method);
     if (!_strat_ref.IsSet()) {
       // Returns false when strategy is not set.
       return false;
@@ -341,7 +396,7 @@ class Stg_Meta_Risk : public Strategy {
     bool _result = true;
     // uint _ishift = _indi.GetShift();
     uint _ishift = _shift;
-    Ref<Strategy> _strat_ref = GetRiskStrategy();
+    Ref<Strategy> _strat_ref = GetRiskStrategy(_cmd, _method);
     if (!_strat_ref.IsSet()) {
       // Returns false when strategy is not set.
       return false;
