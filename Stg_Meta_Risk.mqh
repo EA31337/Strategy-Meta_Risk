@@ -9,9 +9,9 @@
 
 // User input params.
 INPUT2_GROUP("Meta Risk strategy: main params");
-INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_Low = STRAT_BANDS;    // Strategy for low risk
-INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_Medium = STRAT_NONE;  // Strategy for medium risk
-INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_High = STRAT_NONE;    // Strategy for high risk
+INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_Low = STRAT_RSI;     // Strategy for low risk
+INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_Medium = STRAT_RSI;  // Strategy for medium risk
+INPUT2 ENUM_STRATEGY Meta_Risk_Strategy_Risk_High = STRAT_GATOR;  // Strategy for high risk
 INPUT2_GROUP("Meta Risk strategy: common params");
 INPUT2 float Meta_Risk_LotSize = 0;                // Lot size
 INPUT2 int Meta_Risk_SignalOpenMethod = 255;       // Signal open method
