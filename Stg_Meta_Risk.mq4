@@ -6,8 +6,8 @@
 
 /**
  * @file
- * Implements RSI meta strategy.
+ * Implements Risk meta strategy.
  */
 
 // Includes the main code.
-#include "Stg_Meta_RSI.mq5"
+#include "Stg_Meta_Risk.mq5"
